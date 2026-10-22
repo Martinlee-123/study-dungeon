@@ -475,3 +475,10 @@ systemctl list-timers study-notify.timer     # 下次什么时候跑
 > 连续用 7 天，第 8 天你有没有主动想打开的冲动？
 
 没有的话，问题在机制（任务太难 / 连胜太脆 / 奖励不真实），不在界面。去改 `CONFIG`，别去加动画。
+
+---
+
+## 许可
+
+[MIT](LICENSE) © 2026 Martinlee-123
+
