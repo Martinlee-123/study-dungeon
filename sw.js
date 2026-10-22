@@ -3,7 +3,7 @@
    策略：页面走「先网络再缓存」，静态资源走「先缓存后台更新」。
    同步请求（/api/）永远走网络，绝不缓存。 */
 
-const CACHE = 'study-v10';
+const CACHE = 'study-v11';
 const ASSETS = [
   './',
   './index.html',

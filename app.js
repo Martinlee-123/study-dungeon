@@ -216,16 +216,47 @@
     return s;
   }
 
+  let SAVE_WARNING = null;   // 'recovered' | 'broken'，启动后弹一句
+
   function load() {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) return migrate(JSON.parse(raw));
-    } catch (e) { /* 忽略损坏的存档 */ }
+    let raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (e) { /* 存储被禁用 */ }
+
+    if (raw) {
+      try {
+        return migrate(JSON.parse(raw));
+      } catch (e) {
+        // 别直接扔掉：原始字符串另存一份，至少还能手工救
+        try { localStorage.setItem(KEY + '.broken.' + Date.now(), raw); } catch (_) { /* 忽略 */ }
+      }
+
+      // 主档坏了，退回上一份
+      try {
+        const prev = localStorage.getItem(KEY + '.prev');
+        if (prev) {
+          const s = migrate(JSON.parse(prev));
+          // 顺手把好的那份写回主档，不然每次打开都得再恢复一遍
+          try { localStorage.setItem(KEY, prev); } catch (e) { /* 忽略 */ }
+          SAVE_WARNING = 'recovered';
+          return s;
+        }
+      } catch (e) { /* 备份也坏 */ }
+      SAVE_WARNING = 'broken';
+    }
+
     const s = emptyState();
     if (DEMO) {
       try { seedDemo(s); } catch (e) { /* 演示数据生成失败就用空档，别把整个应用拖死 */ }
     }
     return s;
+  }
+
+  function showSaveWarning() {
+    if (!SAVE_WARNING) return;
+    toast(SAVE_WARNING === 'recovered'
+      ? '主存档损坏，已回退到上一次的备份'
+      : '存档读取失败，原始数据已另存一份，当前是空白档', 'blue');
+    SAVE_WARNING = null;
   }
 
   // ── 云同步状态（声明必须早于 loadSync() 调用，否则 TDZ 会把整个脚本打死）──
@@ -258,7 +289,12 @@
 
   function saveLocalOnly() {
     try {
-      localStorage.setItem(KEY, JSON.stringify(S));
+      const json = JSON.stringify(S);
+      // 存之前先把上一版挪到 .prev，等于永远留一手「上一个好档」；
+      // 第一次保存时没有上一版，就把自己复制一份，保证备份从第一天就存在
+      const prev = localStorage.getItem(KEY);
+      localStorage.setItem(KEY + '.prev', prev || json);
+      localStorage.setItem(KEY, json);
     } catch (e) {
       toast('存档写入失败，可能是浏览器存储被禁用了', 'blue');
     }
@@ -599,10 +635,10 @@
   function reconcileStreak() {
     const p = S.player;
     const today = todayKey();
-    if (!p.lastDay) return [];
-    if (p.lastDay === today) return [];
+    if (!p.lastDay || p.lastDay === today) return { used: [], changed: false };
 
     const used = [];
+    let changed = false;
     let cursor = p.lastDay;
     while (true) {
       const next = addDays(cursor, 1);
@@ -612,14 +648,16 @@
         p.freezes--;
         p.frozen.push(next);
         used.push(next);
+        changed = true;
         cursor = next;
         continue;
       }
       p.streak = 0;
       p.lastDay = null;
+      changed = true;
       break;
     }
-    return used;
+    return { used: used, changed: changed };
   }
 
   function completeQuest(q, minutes, note) {
@@ -1309,7 +1347,7 @@
     const coinsBefore = S.player.coins;
     const lvBefore = levelInfo(S.player.xp).lv;
     const readyBefore = readyWeeklies().join(',');
-    const usedFreezes = reconcileStreak();
+    const usedFreezes = reconcileStreak().used;
     const doneBefore = listedDone(key);
     const total = list.length;
 
@@ -2551,8 +2589,27 @@
   }
 
   /* ── 计时器心跳 ── */
+  let lastDayKey = null;
+
   function tickTimers() {
     updateCountdown();
+
+    // 页面挂着跨过凌晨 4 点：任务该换了，界面不能还停在昨天
+    const dayNow = todayKey();
+    if (!lastDayKey) {
+      lastDayKey = dayNow;
+    } else if (dayNow !== lastDayKey) {
+      lastDayKey = dayNow;
+      editing = false;
+      editList = [];
+      noting = null;
+      const rec = reconcileStreak();
+      if (rec.changed) save();
+      renderAll();
+      renderMeta();
+      toast('新的一天 · 任务已刷新', 'gold');
+    }
+
     const nodes = $$('[data-timer]');
     if (!nodes.length) return;
     const now = Date.now();
@@ -2561,6 +2618,27 @@
     });
   }
   setInterval(tickTimers, 1000);
+
+  // 同一个存档被另一个标签页改了：跟着切过去，别让两边各写各的、互相覆盖
+  window.addEventListener('storage', function (e) {
+    if (e.key !== KEY || !e.newValue) return;
+    try {
+      S = migrate(JSON.parse(e.newValue));
+    } catch (err) { return; }
+    editing = false;
+    editList = [];
+    noting = null;
+    renderAll();
+    renderMeta();
+    toast('另一个标签页改了存档，已同步过来', 'blue');
+  });
+
+  // 切走页面（切标签 / 锁屏 / 关窗）时，把还没推上去的改动尽量推掉
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden' && sync.on && sync.dirty && !syncing) {
+      syncPush(true);
+    }
+  });
 
   /* =========================================================
      八、启动
@@ -2707,6 +2785,7 @@
     el.classList.add('boot-out');
     document.body.classList.remove('booting');
     setTimeout(function () { el.remove(); }, 720);
+    setTimeout(showSaveWarning, 900);
   }
 
   // ── PWA：装到主屏幕 + 离线可用 ──
@@ -2719,17 +2798,23 @@
   }
 
   function boot() {
-    const used = reconcileStreak();    save();
+    // 只在连胜真的被结算过时才写档——以前这里无条件 save()，
+    // 结果每打开一次页面就算一次「有改动」，同步会被无谓地推一次
+    const rec = reconcileStreak();
+    if (rec.changed) save();
+
     renderAll();
     syncSettingsUI();
 
     if (DEMO) {
       toast('演示模式：随便点，不会动你的真实存档', 'blue');
-    } else if (used.length) {
-      toast('❄ 用掉 ' + used.length + ' 张冻结卡补签，连胜保住了');
+    } else if (rec.used.length) {
+      toast('❄ 用掉 ' + rec.used.length + ' 张冻结卡补签，连胜保住了');
     }
 
     initBoot();
+    // 有启动画面就等它放完再弹，否则会被盖住
+    if (!document.body.classList.contains('booting')) showSaveWarning();
     applyGrid();
     updateSyncUI();
     syncBoot();
