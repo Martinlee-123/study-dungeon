@@ -1,0 +1,8 @@
+[Unit]
+Description=Study Dungeon daily nudge (check + maybe send)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /srv/study-notify/notify.py

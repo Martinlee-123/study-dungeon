@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>学习副本 · Study Dungeon</title>
+<meta name="theme-color" content="#0b0d12">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.6 21.4 7.2v9.6L12 22.4 2.6 16.8V7.2Z' fill='%23f5c451'/%3E%3Cpath d='M7.6 12 10.5 14.9 16.5 8.8' fill='none' stroke='%23231503' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="学习副本">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<!-- 图标符号：六边形 + 对勾 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="markGold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe193"/>
+      <stop offset=".55" stop-color="#f5c451"/>
+      <stop offset="1" stop-color="#d9932c"/>
+    </linearGradient>
+  </defs>
+  <symbol id="mark" viewBox="0 0 24 24">
+    <path d="M12 1.6 21.4 7.2v9.6L12 22.4 2.6 16.8V7.2Z" fill="url(#markGold)"/>
+    <path d="M12 1.6 21.4 7.2v9.6L12 22.4 2.6 16.8V7.2Z" fill="none" stroke="rgba(0,0,0,.16)" stroke-width=".6"/>
+    <path d="M7.6 12 10.5 14.9 16.5 8.8" fill="none" stroke="#231503" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+</svg>
+
+<!-- ── 启动画面 ── -->
+<div class="boot" id="boot">
+  <div class="boot-grid" aria-hidden="true"></div>
+  <div class="boot-stage">
+    <div class="boot-mark" aria-hidden="true"><svg><use href="#mark"/></svg></div>
+    <h1 class="boot-title">学习副本</h1>
+    <p class="boot-en">STUDY DUNGEON</p>
+    <div class="boot-rule"></div>
+    <button class="boot-start" type="button" id="boot-start">开 始 游 戏</button>
+    <p class="boot-tap" id="boot-tap">TAP TO START</p>
+    <div class="boot-load" id="boot-load" hidden>
+      <div class="boot-bar">
+        <span class="lb-half"><i id="boot-fill-l"></i></span>
+        <span class="lb-num" id="boot-pct">0%</span>
+        <span class="lb-half"><i id="boot-fill-r"></i></span>
+      </div>
+      <p class="lb-tip" id="boot-tip">正在加载任务池…</p>
+    </div>
+  </div>
+  <div class="boot-foot">
+    <span>v1.0.0</span>
+    <span>DATA STAYS LOCAL</span>
+  </div>
+</div>
+
+<div class="bg-glow" aria-hidden="true"></div>
+<div class="bg-done" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true"><svg><use href="#mark"/></svg></div>
+    <div class="brand-text">
+      <h1>学习副本</h1>
+      <p id="today-label">—</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <button class="pill" id="btn-report" type="button">本月战报</button>
+    <button class="icon-btn" id="btn-settings" type="button" title="设置 / 备份" aria-label="设置">⚙</button>
+  </div>
+</header>
+
+<main class="layout">
+  <div class="col-main">
+
+    <!-- ── 玩家状态 ── -->
+    <section class="card hud">
+      <div class="hud-top">
+        <div class="identity">
+          <span class="lv">Lv.<b id="lv-num">1</b></span>
+          <span class="lv-title" id="lv-title">新手村民</span>
+        </div>
+        <div class="hud-right">
+          <div class="streak" id="streak-box">
+            <span class="flame" aria-hidden="true">🔥</span>
+            <b id="streak-num">0</b><span class="unit">天</span>
+          </div>
+          <div class="countdown" id="reset-box" title="距今天结束（凌晨 4 点换日）">
+            <span class="cd-label">重置</span><b id="reset-count">--:--:--</b>
+          </div>
+        </div>
+      </div>
+
+      <div class="today-row">
+        <span class="today-label">今日</span>
+        <div class="pips" id="daily-pips"></div>
+        <span class="today-hint" id="today-hint">—</span>
+      </div>
+
+      <div class="xp-line">
+        <div class="xpbar" id="xpbar">
+          <i id="xp-fill"></i>
+          <span id="xp-text">0 / 100</span>
+        </div>
+        <span class="mini-meta">
+          <span>💰 <b id="stat-coins">0</b></span>
+          <span>❄ <b id="stat-freeze">0</b></span>
+        </span>
+      </div>
+    </section>
+
+    <!-- ── 日常 ── -->
+    <section class="card">
+      <div class="card-head">
+        <h2>今日任务</h2>
+        <div class="card-head-right">
+          <span class="hint daily-total" id="daily-total">—</span>
+          <button class="mini-btn" type="button" id="btn-ai">✧ AI 排任务</button>
+          <button class="mini-btn" type="button" id="btn-edit-daily">编辑</button>
+        </div>
+      </div>
+      <ul class="quests" id="daily-list"></ul>
+      <div class="edit-bar" id="daily-edit-bar" hidden>
+        <button class="btn ghost" type="button" data-daily-add>＋ 加一个</button>
+        <label class="edit-default"><input type="checkbox" id="edit-default">以后每天也用这套</label>
+        <span class="edit-bonus" id="edit-bonus-hint"></span>
+        <span class="spacer"></span>
+        <button class="btn ghost" type="button" data-daily-cancel>取消</button>
+        <button class="btn primary" type="button" data-daily-save>保存</button>
+      </div>
+    </section>
+
+    <!-- ── 周常 ── -->
+    <section class="card">
+      <div class="card-head">
+        <h2>本周挑战<span class="dot" id="week-dot" hidden></span></h2>
+        <span class="hint" id="week-range">—</span>
+      </div>
+      <ul class="weeklies" id="weekly-list"></ul>
+    </section>
+
+  </div>
+
+  <aside class="col-side">
+
+    <!-- ── 商店（折叠，点开才是悬浮窗） ── -->
+    <section class="card">
+      <div class="card-head">
+        <h2>兑换商店</h2>
+        <span class="hint">金币 <b id="shop-coins">0</b></span>
+      </div>
+      <button class="shop-entry" type="button" id="btn-shop">
+        <span class="se-icon" aria-hidden="true">🛍</span>
+        <span class="se-main">
+          <b>打开商店</b>
+          <em id="shop-summary">—</em>
+        </span>
+        <span class="se-arrow" aria-hidden="true">›</span>
+      </button>
+      <button class="bag-btn" type="button" data-bag>
+        <span class="bag-icon">🎒</span>
+        <span>仓库</span>
+        <b class="bag-count">0</b>
+        <span class="bag-hint">件待用</span>
+      </button>
+    </section>
+
+    <!-- ── 笔记（默认折叠） ── -->
+    <section class="card notes-card">
+      <div class="card-head">
+        <h2>战地笔记</h2>
+        <button class="chev" type="button" id="btn-notes" aria-expanded="false">
+          <span id="notes-count">0 条</span><i aria-hidden="true">›</i>
+        </button>
+      </div>
+      <ul class="notes" id="notes-list" hidden></ul>
+    </section>
+
+    <!-- ── 热力图 ── -->
+    <section class="card">
+      <div class="card-head">
+        <h2>出勤</h2>
+        <span class="hint">近 16 周</span>
+      </div>
+      <div class="heat-flex">
+        <div class="heatmap-wrap">
+          <div class="heatmap" id="heatmap"></div>
+        </div>
+        <div class="heat-stats" id="heat-stats"></div>
+      </div>
+      <div class="legend">
+        <span>少</span>
+        <i class="cell lv0"></i><i class="cell lv1"></i><i class="cell lv2"></i><i class="cell lv3"></i><i class="cell lv4"></i>
+        <span>多</span>
+        <span class="legend-sep"></span>
+        <i class="cell ice"></i><span>补签</span>
+      </div>
+    </section>
+
+    <p class="side-note">
+      数据只存在这台电脑的浏览器里。换设备 / 清缓存前，记得去 <b>⚙ 设置</b> 导出备份。
+    </p>
+  </aside>
+</main>
+
+<footer class="foot">
+  <span>你是玩家，也是策划。目标是多学一点，不是多打开一次。</span>
+</footer>
+
+<!-- ── 升级结算 ── -->
+<div class="levelup" id="levelup" hidden>
+  <div class="lu-burst" aria-hidden="true"></div>
+  <div class="lu-card" role="status" aria-live="polite">
+    <p class="lu-eyebrow">LEVEL UP</p>
+    <div class="lu-lv">Lv.<b id="lu-lv">2</b></div>
+    <div class="lu-title" id="lu-title">见习冒险者</div>
+    <p class="lu-sub" id="lu-sub">—</p>
+    <p class="lu-hint">点一下继续 · Esc 跳过</p>
+  </div>
+</div>
+
+<!-- ── 商店 ── -->
+<div class="modal" id="modal-shop" hidden>
+  <div class="modal-box wide" role="dialog" aria-modal="true" aria-labelledby="shop-title">
+    <button class="x" type="button" data-close aria-label="关闭">×</button>
+    <p class="eyebrow">商店</p>
+    <h3 id="shop-title">兑换商店</h3>
+    <p class="bag-sub">金币 <b id="shop-coins-modal">0</b> · 兑换后先进仓库，想用的时候再点「用掉」。</p>
+    <ul class="shop" id="shop-list"></ul>
+    <div class="modal-foot">
+      <button class="btn ghost" type="button" data-bag>🎒 仓库 <b class="bag-count">0</b></button>
+      <button class="btn primary" type="button" data-close>收好</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 仓库弹窗 ── -->
+<div class="modal" id="modal-bag" hidden>
+  <div class="modal-box wide" role="dialog" aria-modal="true" aria-labelledby="bag-title">
+    <button class="x" type="button" data-close aria-label="关闭">×</button>
+    <p class="eyebrow">库存</p>
+    <h3 id="bag-title">仓库</h3>
+    <p class="bag-sub" id="bag-sub">—</p>
+    <div class="bag-list" id="bag-list"></div>
+    <div class="bag-done" id="bag-done"></div>
+    <div class="modal-foot">
+      <button class="btn primary" type="button" data-close>收好</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 同步冲突 ── -->
+<div class="modal" id="modal-sync" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="sync-title">
+    <button class="x" type="button" data-close aria-label="关闭">×</button>
+    <p class="eyebrow">同步冲突</p>
+    <h3 id="sync-title">两边都有新东西</h3>
+    <p class="ai-sub">本机有还没传上去的改动，服务器上也有另一台设备写的版本。选一个，另一个会被覆盖。</p>
+    <div class="sync-cmp" id="sync-cmp"></div>
+    <div class="sync-choice">
+      <button class="btn primary" type="button" id="sync-keep-local">用本机的，覆盖服务器</button>
+      <button class="btn ghost" type="button" id="sync-take-remote">用服务器的，丢掉本机改动</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── AI 排任务 ── -->
+<div class="modal" id="modal-ai" hidden>
+  <div class="modal-box wide" role="dialog" aria-modal="true" aria-labelledby="ai-title">
+    <button class="x" type="button" data-close aria-label="关闭">×</button>
+    <p class="eyebrow">排任务</p>
+    <h3 id="ai-title">今天想干什么，随便写</h3>
+    <p class="ai-sub">一句话就行，我来拆成任务。拆完不满意，还能自己改。</p>
+    <textarea id="ai-input" rows="3" placeholder="例：今天数学把第三章看完，英语背 50 个单词，晚上做一套真题"></textarea>
+    <div class="ai-actions">
+      <button class="btn primary" type="button" id="ai-run">拆成任务</button>
+      <button class="btn ghost mic" type="button" id="ai-mic" hidden>
+        <span class="mic-dot"></span><span id="ai-mic-label">语音输入</span>
+      </button>
+      <span class="hint" id="ai-note"></span>
+    </div>
+    <div class="ai-list" id="ai-list"></div>
+    <div class="modal-foot">
+      <button class="btn ghost" type="button" data-close>取消</button>
+      <button class="btn primary" type="button" id="ai-apply" hidden>替换今天的任务</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 编辑商城 ── -->
+<div class="modal" id="modal-shop-edit" hidden>
+  <div class="modal-box wide" role="dialog" aria-modal="true" aria-labelledby="shop-edit-title">
+    <button class="x" type="button" data-close aria-label="关闭">×</button>
+    <p class="eyebrow">商城</p>
+    <h3 id="shop-edit-title">编辑商品</h3>
+    <p class="bag-sub">名字和价格随你定。定多贵，取决于你觉得自己那点执行力值多少。</p>
+    <div class="shop-edit" id="shop-edit-list"></div>
+    <div class="edit-bar">
+      <button class="btn ghost" type="button" id="shop-add">＋ 加一个</button>
+      <span class="spacer"></span>
+      <button class="btn ghost" type="button" data-close>取消</button>
+      <button class="btn primary" type="button" id="shop-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 战报弹窗 ── -->
+<div class="modal" id="modal-report" hidden>
+  <div class="modal-box wide" role="dialog" aria-modal="true" aria-labelledby="report-title">
+    <button class="x" type="button" data-close aria-label="关闭">×</button>
+    <p class="eyebrow">月度结算</p>
+    <h3 id="report-title">战报</h3>
+    <div class="report-body" id="report-body"></div>
+    <div class="modal-foot">
+      <button class="btn primary" type="button" data-close>继续打</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 设置弹窗 ── -->
+<div class="modal" id="modal-settings" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <button class="x" type="button" data-close aria-label="关闭">×</button>
+    <p class="eyebrow">系统</p>
+    <h3 id="settings-title">设置</h3>
+
+    <div class="setting-row">
+      <div>
+        <b>音效</b>
+        <span>完成任务时的一声「叮」</span>
+      </div>
+      <button class="switch" id="sw-sound" type="button" role="switch" aria-checked="true"><i></i></button>
+    </div>
+
+    <div class="setting-row">
+      <div>
+        <b>启动画面</b>
+        <span>打开时点一下「开始游戏」，装个加载条</span>
+      </div>
+      <button class="switch" id="sw-boot" type="button" role="switch" aria-checked="true"><i></i></button>
+    </div>
+
+    <div class="setting-row">
+      <div>
+        <b>背景网格</b>
+        <span>关掉就是纯黑，环境光晕还在</span>
+      </div>
+      <button class="switch" id="sw-grid" type="button" role="switch" aria-checked="true"><i></i></button>
+    </div>
+
+    <div class="setting-block">
+      <b>备份</b>
+      <p>导出一个 .json 文件存好；换浏览器时用「导入」恢复。</p>
+      <div class="row-btns">
+        <button class="btn ghost" type="button" id="btn-export">导出备份</button>
+        <button class="btn ghost" type="button" id="btn-import">导入备份</button>
+        <input type="file" id="file-import" accept="application/json,.json" hidden>
+      </div>
+    </div>
+
+    <div class="setting-block">
+      <b>云同步</b>
+      <p>把进度存到你自己的服务器上，手机和电脑共用一份。关掉就用回本机存档。</p>
+
+      <div class="sync-row">
+        <span>开启云同步</span>
+        <button class="switch" id="sw-sync" type="button" role="switch" aria-checked="false"><i></i></button>
+      </div>
+
+      <div class="ai-fields sync-fields">
+        <label>服务器地址<input type="text" id="sync-base" placeholder="https://example.com/study/api" autocomplete="off" spellcheck="false"></label>
+        <label>口令<input type="password" id="sync-token" placeholder="服务器上 /srv/study-data/token 的内容" autocomplete="off"></label>
+      </div>
+
+      <div class="sync-foot">
+        <span class="sync-status" id="sync-status">未开启</span>
+        <button class="btn ghost" type="button" id="sync-up">上传本机</button>
+        <button class="btn ghost" type="button" id="sync-down">拉取服务器</button>
+      </div>
+    </div>
+
+    <div class="setting-block">
+      <b>商城</b>
+      <p>换商品、改价格、加你自己想要的奖励。</p>
+      <button class="btn ghost" type="button" id="btn-shop-edit">编辑商品</button>
+    </div>
+
+    <div class="setting-block">
+      <b>AI 拆任务</b>
+      <p>
+        填一个 OpenAI 兼容的接口，就能让 AI 把你的一句话拆成任务；不填也能用，走内置的本地规则（笨一点，但离线可用）。
+        Key 只存在这台电脑的浏览器里，不会上传到别处。
+      </p>
+      <div class="ai-fields">
+        <label>接口地址<input type="text" id="ai-base" placeholder="https://api.deepseek.com/v1" autocomplete="off"></label>
+        <label>模型<input type="text" id="ai-model" placeholder="deepseek-chat" autocomplete="off"></label>
+        <label>API Key<input type="password" id="ai-key" placeholder="sk-..." autocomplete="off"></label>
+      </div>
+    </div>
+
+    <div class="setting-block danger">
+      <b>危险操作</b>
+      <p>清空后会失去全部记录和奖励，不可撤销。</p>
+      <button class="btn danger" type="button" id="btn-reset">清空全部数据</button>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn primary" type="button" data-close>完成</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

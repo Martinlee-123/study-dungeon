@@ -1,0 +1,7 @@
+# 统一换行符：仓库里存 LF，Windows 上也不会混进 CRLF
+# （同步服务端和 systemd unit 是要跑到 Linux 上的，CRLF 会出问题）
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary

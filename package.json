@@ -1,0 +1,10 @@
+{
+  "name": "study-dungeon",
+  "version": "1.0.0",
+  "private": true,
+  "description": "学习副本 · 把学习做成日常 / 周常 / 连胜 / 冻结卡的游戏化打卡站",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs"
+  }
+}
